@@ -1,3 +1,4 @@
+import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.datavec.api.records.reader.RecordReader;
@@ -15,6 +16,7 @@ import org.deeplearning4j.nn.graph.ComputationGraph;
 import org.deeplearning4j.nn.multilayer.MultiLayerNetwork;
 import org.deeplearning4j.nn.weights.WeightInit;
 import org.deeplearning4j.optimize.listeners.ScoreIterationListener;
+import org.deeplearning4j.util.ModelSerializer;
 import org.nd4j.common.io.ClassPathResource;
 import org.nd4j.evaluation.classification.Evaluation;
 import org.nd4j.linalg.activations.Activation;
@@ -57,7 +59,7 @@ public class LogestiRegression {
         return test_train_data;
     }
 
-    private static void model(DataSet train,DataSet test){
+    private static void model(DataSet train,DataSet test) throws IOException {
         MultiLayerConfiguration configuration = new NeuralNetConfiguration.Builder()
                 .seed(123)
                 .weightInit(WeightInit.XAVIER)
@@ -72,21 +74,21 @@ public class LogestiRegression {
         model.init();
         model.setListeners(new ScoreIterationListener(10));
         for (int epoch=0;epoch<n_epocs;epoch++){
+            logger.info("Running Epoch="+String.valueOf(epoch+1));
             model.fit(train);
+            Evaluation eval = new Evaluation(n_outputs);
+            INDArray output = model.output(test.getFeatures(),false);
+            eval.eval(test.getLabels(),output);
+            logger.info(eval.stats());
         }
-        System.out.println("Evaluating model....");
-        Evaluation eval = new Evaluation(n_outputs);
-        while (test.hasNext()){
-            DataSet t = test.next();
-            INDArray features = t.getFeatures();
-            INDArray lables = t.getLabels();
-            INDArray predicted = model.output(features,false);
-            eval.eval(lables,predicted);
-        }
-        System.out.println(eval.stats());
+
+        ModelSerializer.writeModel(model,"/home/andy/git/dl_with_java/src/main/resources/won_lost_model",false);
     }
 
-    public static void main(String[] args) {
-
+    public static void main(String[] args) throws IOException, InterruptedException {
+        BasicConfigurator.configure();
+        HashMap<String, DataSet> train_test_data = load_data("won_lost_data.csv");
+        logger.info("Starting training");
+        model(train_test_data.get("train_data"),train_test_data.get("test_data"));
     }
 }
